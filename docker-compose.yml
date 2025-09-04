@@ -1,0 +1,53 @@
+# This file defines our multi-container setup for local development.
+# Version '3.8' is a modern, stable version of the Docker Compose file format.
+version: '3.8'
+
+# 'services' is where we define the containers we want to run.
+services:
+  # 1. The Database Service for our application.
+  quotation-db:
+    # Use the official MySQL image, version 8.0.
+    image: mysql:8.0
+    container_name: quotation-db
+    # Environment variables to configure the MySQL instance.
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: quotation_db
+    # Map port 3307 on your local machine to port 3306 inside the container.
+    # We use 3307 to avoid conflicts if you have another MySQL instance running locally.
+    ports:
+      - "3307:3306"
+    # This healthcheck ensures the database is fully ready before other services start.
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p", "root"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    # Persist database data even if the container is removed.
+    volumes:
+      - db_data:/var/lib/mysql
+
+  # 2. The Quotation Application Service.
+  quotation-service:
+    # Build an image from the Dockerfile in the './quotation-service' directory.
+    build: ./quotation-service
+    container_name: quotation-service
+    # Environment variables for the Spring Boot application.
+    environment:
+      # The JDBC URL to connect to the 'quotation-db' service.
+      # 'quotation-db' is the hostname of the database container on the Docker network.
+      DB_URL: jdbc:mysql://quotation-db:3306/quotation_db
+      DB_USERNAME: root
+      DB_PASSWORD: root
+    # Map port 8083 on your local machine to port 8083 inside the container.
+    ports:
+      - "8083:8083"
+    # This ensures the 'quotation-service' will not start until the 'quotation-db'
+    # has passed its healthcheck and is fully ready to accept connections.
+    depends_on:
+      quotation-db:
+        condition: service_healthy
+
+# Define the named volume for data persistence.
+volumes:
+  db_data:
