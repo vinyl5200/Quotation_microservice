@@ -51,3 +51,56 @@ services:
 # Define the named volume for data persistence.
 volumes:
   db_data:
+
+
+
+
+
+# For ETL Process
+version: '3.8'
+
+services:
+  # 1. Quotation Microservice Database (Transactional Data)
+  quotation-db:
+    image: mysql:8.0
+    container_name: quotation-db
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: quotation_service_db
+    ports:
+      - "3307:3306"
+    volumes:
+      - quotation-db-data:/var/lib/mysql
+      - ./etl/sql-init/quotation-db:/docker-entrypoint-initdb.d
+
+  # 2. Medallion Architecture Database (Analytical Data)
+  medallion-db:
+    image: mysql:8.0
+    container_name: medallion-db
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+    ports:
+      - "3308:3306"
+    volumes:
+      - medallion-db-data:/var/lib/mysql
+      - ./etl/sql-init/medallion-db:/docker-entrypoint-initdb.d
+
+  # 3. PySpark ETL Development Environment
+  pyspark-jupyter:
+    build:
+      context: ./etl
+      dockerfile: Dockerfile
+    container_name: pyspark-jupyter
+    ports:
+      - "8888:8888"
+    volumes:
+      # Mount the entire local /etl directory as a single volume
+      - ./etl:/home/jovyan/etl
+    depends_on:
+      - quotation-db
+      - medallion-db
+    working_dir: /home/jovyan/etl/pyspark-notebooks
+
+volumes:
+  quotation-db-data:
+  medallion-db-data:
